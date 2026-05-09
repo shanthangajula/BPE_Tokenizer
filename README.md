@@ -1,2 +1,2 @@
 # BPE_Tokenizer
-Byte-Pair Encoding tokenizer implemented from scratch in pure Python; benchmarked against tiktoken on Wikipedia text
+A from-scratch BPE tokenizer in Python. Includes training, encoding, decoding, and benchmarks against tiktoken (compression ratio, OOV rate, training time).
