@@ -19,7 +19,9 @@ Usage
 
 import argparse
 import glob
+import sys
 import time
+import urllib.request
 
 import tiktoken
 from bpe import BPETokenizer
@@ -43,20 +45,33 @@ def load_corpus() -> tuple[str, str]:
 
 
 def _local_fallback() -> tuple[str, str]:
-    """Read Python stdlib .py files as a plain-English prose substitute."""
-    files = sorted(glob.glob("/usr/lib/python3.*/**/*.py", recursive=True))
+    """Download a few Project Gutenberg books as a corpus substitute."""
+    # All plain-text UTF-8 from Project Gutenberg (public domain)
+    urls = [
+        "https://www.gutenberg.org/files/1342/1342-0.txt",   # Pride and Prejudice
+        "https://www.gutenberg.org/files/11/11-0.txt",       # Alice in Wonderland
+        "https://www.gutenberg.org/files/84/84-0.txt",       # Frankenstein
+        "https://www.gutenberg.org/files/1661/1661-0.txt",   # Sherlock Holmes
+        "https://www.gutenberg.org/files/98/98-0.txt",       # A Tale of Two Cities
+    ]
     texts = []
-    for path in files:
+    for url in urls:
         try:
-            texts.append(open(path, errors="replace").read())
-        except OSError:
-            pass
+            print(f"  downloading {url.split('/')[-1]} …")
+            with urllib.request.urlopen(url, timeout=10) as r:
+                texts.append(r.read().decode("utf-8", errors="replace"))
+        except Exception as e:
+            print(f"  skipped ({e})")
+
     if not texts:
-        raise RuntimeError("No corpus available — install the `datasets` package.")
-    split = int(len(texts) * 0.9)
+        print("Could not download any corpus. Install datasets:\n  pip install datasets",
+              file=sys.stderr)
+        sys.exit(1)
+
+    split = max(1, int(len(texts) * 0.8))
     train = "\n\n".join(texts[:split])
     test  = "\n\n".join(texts[split:])
-    print(f"  {len(texts)} stdlib files  |  train {len(train):,} chars / test {len(test):,} chars")
+    print(f"  {len(texts)} books  |  train {len(train):,} chars / test {len(test):,} chars")
     return train, test
 
 
@@ -162,7 +177,47 @@ def main():
     ]
 
     print_table(results)
+    save_markdown(results)
 
 
 if __name__ == "__main__":
     main()
+
+
+# ── markdown export ───────────────────────────────────────────────────────────
+
+_COLS    = ["name", "vocab_size", "train_time_s", "test_tokens",
+            "compression_ratio", "oov_pct", "encode_ktps"]
+_HEADERS = ["tokenizer", "vocab", "train (s)", "tokens",
+            "chars/tok", "oov %", "k tok/s"]
+
+
+def save_markdown(results: list[dict],
+                  path: str = "results/benchmark_results.md") -> None:
+    import datetime, os
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+
+    header_row = "| " + " | ".join(_HEADERS) + " |"
+    sep_row    = "| " + " | ".join("---" for _ in _HEADERS) + " |"
+    data_rows  = [
+        "| " + " | ".join(str(r[c]) for c in _COLS) + " |"
+        for r in results
+    ]
+
+    lines = [
+        "# BPE Benchmark Results",
+        f"\n_Generated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}_\n",
+        "## Metrics",
+        "- **chars/tok** — compression ratio; higher = fewer tokens needed",
+        "- **oov %** — raw single-byte tokens; lower = better vocab coverage",
+        "- **k tok/s** — encoding speed on the holdout set\n",
+        "## Results",
+        header_row,
+        sep_row,
+        *data_rows,
+    ]
+
+    with open(path, "w") as f:
+        f.write("\n".join(lines) + "\n")
+
+    print(f"  ✓ results saved to {path}")
