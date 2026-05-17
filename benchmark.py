@@ -180,10 +180,6 @@ def main():
     save_markdown(results)
 
 
-if __name__ == "__main__":
-    main()
-
-
 # ── markdown export ───────────────────────────────────────────────────────────
 
 _COLS    = ["name", "vocab_size", "train_time_s", "test_tokens",
@@ -221,3 +217,7 @@ def save_markdown(results: list[dict],
         f.write("\n".join(lines) + "\n")
 
     print(f"  ✓ results saved to {path}")
+
+
+if __name__ == "__main__":
+    main()
