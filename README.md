@@ -1,144 +1,91 @@
-BPE Tokenizer From Scratch
+# BPE Tokenizer From Scratch
 
-A minimal Byte Pair Encoding (BPE) tokenizer implementation built from scratch in Python to understand how modern LLM tokenization works internally.
+A minimal Byte Pair Encoding (BPE) tokenizer built from scratch in Python to understand how modern LLM tokenization works internally.
 
-Why This Exists
+## Why This Exists
 
-Large language models such as GPT-2 and Llama do not process raw text directly. They operate on sequences of integer token IDs. Before text can be fed into a model, it must first be tokenized into smaller reusable units.
+Large language models like GPT-2 and Llama don't process raw text directly — they operate on sequences of integer token IDs. Before text reaches a model, it must be tokenized into smaller reusable units.
 
-The goal of this project was to understand tokenization conceptually instead of treating it as a black box. Rather than using an existing tokenizer library, this implementation recreates the core mechanics of Byte Pair Encoding (BPE) from scratch:
+The goal of this project was to understand tokenization conceptually rather than treat it as a black box. This implementation recreates the core mechanics of BPE from scratch: learning merges from training text, building a vocabulary dynamically, encoding unseen text using learned merges, and decoding token IDs back into the original text.
 
-learning merges from training text
-building a vocabulary dynamically
-encoding unseen text using learned merges
-decoding token IDs back into the original text
+The focus is educational clarity rather than production optimization.
 
-The focus of this project is educational clarity rather than production optimization.
+## Files
 
-What's In Here
+| File | Description |
+| --- | --- |
+| `bpe.py` | BPE tokenizer class — training, encoding, decoding |
+| `benchmark.py` | Benchmarks custom BPE against tiktoken cl100k_base |
+| `results/benchmark_results.md` | Latest benchmark output |
 
-This repository contains:
+## How BPE Works
 
-tokenizer.py
-Minimal BPE tokenizer implementation
-Byte-level vocabulary initialization
-BPE training loop
-Encoding and decoding logic
-test_tokenizer.py
-Simple examples for training and testing the tokenizer
-README.md
-Explanation of the project and implementation details
+BPE starts with individual bytes as tokens, then repeatedly:
 
-Core features implemented:
-
-Byte-level tokenization
-Adjacent pair frequency counting
-Iterative merge learning
-Deterministic encoding using learned merge order
-Lossless decoding back to UTF-8 text
-How BPE Works (30-Second Version)
-
-BPE starts with individual bytes as tokens.
-
-Example:
-
-"h e l l o"
-
-The tokenizer repeatedly:
-
-Counts neighboring token pairs
-Finds the most frequent pair
-Merges that pair into a new token
-Rewrites the sequence using the new token
+1. Counts neighboring token pairs
+2. Finds the most frequent pair
+3. Merges it into a new token
+4. Rewrites the sequence
 
 Over time, common patterns become reusable chunks:
 
-"h" + "e" -> "he"
-"he" + "llo" -> "hello"
-
-Frequent sequences become compressed into larger tokens, while rare words can still be represented using smaller byte-level pieces.
-
 After training, encoding simply replays the learned merges in the same order.
 
-Results
+## Benchmark Results
 
-Example training corpus:
+Trained on Project Gutenberg books (~750k chars), tested on a held-out split.
 
-"hello hello hello world"
+| tokenizer | vocab | train (s) | tokens | chars/tok | oov % | k tok/s |
+| --- | --- | --- | --- | --- | --- | --- |
+| Custom BPE | 5,256 | 1,725 | 191,308 | 3.961 | 8.71% | 0.6 |
+| tiktoken cl100k_base | 100,277 | — | 186,327 | 4.067 | — | 880 |
 
-Example run:
+**Compression** is competitive — 3.96 vs 4.07 chars/token — despite using a 19× smaller vocabulary. The speed gap (0.6 vs 880 k tok/s) is pure Python vs compiled C.
 
-Step	Output
-Encoded "hello"	[259]
-Decoded Output	"hello"
-Vocabulary Size	300
-Base Vocabulary	256 byte tokens
-Learned Merges	44
+## Setup
 
-The tokenizer successfully satisfies:
-
-decode(encode(text)) == text
-
-which confirms lossless reconstruction.
-
-Setup
-
-Clone the repository:
-
+```bash
 git clone <repo-url>
-cd <repo-name>
+cd BPE_Tokenizer
+pip install tiktoken datasets   # datasets optional — benchmark falls back to Gutenberg
+```
 
-Python 3.10+ recommended.
+Python 3.10+ required.
 
-No external dependencies are required beyond the Python standard library.
+## Usage
 
-Usage
-
-Train tokenizer:
-
-from tokenizer import BPETokenizer
+```python
+from bpe import BPETokenizer
 
 tokenizer = BPETokenizer()
+tokenizer.train("hello hello hello world", vocab_size=300)
 
-corpus = "hello hello hello world"
-
-tokenizer.train(corpus, vocab_size=300)
-
-Encode text:
-
-ids = tokenizer.encode("hello")
-
-print(ids)
-
-Decode token IDs:
-
+ids  = tokenizer.encode("hello")
 text = tokenizer.decode(ids)
 
-print(text)
+assert tokenizer.decode(tokenizer.encode("hello")) == "hello"
+```
 
-Expected property:
+## Run the Benchmark
 
-tokenizer.decode(
-    tokenizer.encode("hello")
-) == "hello"
-What I'd Do Next
+```bash
+python benchmark.py               # 5000 merges (~30 min)
+python benchmark.py --merges 1000 # faster smoke test
+```
 
-This implementation focuses on conceptual understanding and correctness, but there are several improvements that would make it closer to production-grade tokenizers:
+Results are saved to `results/benchmark_results.md`.
 
-Add regex-based pre-tokenization
-Store merge rankings explicitly
-Improve merge efficiency using priority queues
-Add special tokens (<PAD>, <EOS>, etc.)
-Serialize vocab and merges to disk
-Benchmark compression ratio and speed
-Support larger training corpora
-Implement GPT-2 style byte encoding exactly
+## What I'd Do Next
 
-A future extension would also be comparing this tokenizer against real-world implementations from OpenAI and Hugging Face.
+- Regex-based pre-tokenization (GPT-2 style)
+- Priority queue for faster merge selection
+- Special tokens (`<PAD>`, `<EOS>`, etc.)
+- Serialize vocab and merges to disk
+- Match GPT-2 byte encoding exactly
 
-References
-Andrej Karpathy — “Let’s build the GPT Tokenizer”
-GPT-2 tokenizer implementation
-Sennrich et al. — Neural Machine Translation of Rare Words with Subword Units
-Hugging Face Tokenizers Documentation
-OpenAI TikToken Repository
+## References
+
+- Andrej Karpathy — "Let's build the GPT Tokenizer"
+- Sennrich et al. — *Neural Machine Translation of Rare Words with Subword Units*
+- [OpenAI TikToken](https://github.com/openai/tiktoken)
+- [Hugging Face Tokenizers Docs](https://huggingface.co/docs/tokenizers)
